@@ -6,6 +6,41 @@ import Model.User;
 public class sqlConnect {
     private static final String DB_URL = "jdbc:mysql://localhost/healthtracker";
 
+    public User getUserByUsername(String username) {
+        Connection connection = null;
+        PreparedStatement statement = null;
+        ResultSet resultSet = null;
+        User user = null;
+
+        try {
+            connection = DriverManager.getConnection(DB_URL, "root", "");
+            String query = "SELECT * FROM users WHERE username = ?";
+            statement = connection.prepareStatement(query);
+            statement.setString(1, username);
+            resultSet = statement.executeQuery();
+
+            if (resultSet.next()) {
+                user = new User(
+                        resultSet.getString("username"),
+                        resultSet.getString("password"),
+                        resultSet.getString("dateOfBirth"),
+                        resultSet.getInt("height"),
+                        resultSet.getInt("weight"),
+                        resultSet.getInt("calorieIntake"),
+                        resultSet.getInt("calorieBurn"),
+                        resultSet.getInt("waterIntake"),
+                        resultSet.getDouble("sleepHours")
+                );
+            }
+        } catch (SQLException e) {
+            System.out.println("Error retrieving user: " + e.getMessage());
+        } finally {
+            closeResources(resultSet, statement, connection);
+        }
+
+        return user;
+    }
+
     public User authenticateUser(String username, String password) {
         Connection connection = null;
         PreparedStatement statement = null;
@@ -15,14 +50,14 @@ public class sqlConnect {
         try {
             connection = DriverManager.getConnection(DB_URL, "root", "");
 
-            // Create SQL query to check credentials
+
             String query = "SELECT * FROM users WHERE username = ? AND password = ?";
             statement = connection.prepareStatement(query);
             statement.setString(1, username);
             statement.setString(2, password);
             resultSet = statement.executeQuery();
 
-            // If user exists, create User object
+
             if (resultSet.next()) {
                 user = new User(
                         resultSet.getString("username"),
@@ -54,19 +89,19 @@ public class sqlConnect {
         try {
             connection = DriverManager.getConnection(DB_URL, "root", "");
 
-            // First, check if username already exists
+            
             String checkQuery = "SELECT username FROM users WHERE username = ?";
             checkStatement = connection.prepareStatement(checkQuery);
             checkStatement.setString(1, user.getUsername());
             resultSet = checkStatement.executeQuery();
 
             if (resultSet.next()) {
-                // Username already exists
+
                 System.out.println("Username already exists. Please choose another one.");
                 return false;
             }
 
-            // Username is available, insert new user
+
             String insertQuery = "INSERT INTO users (username, password, dateOfBirth, height, weight, " +
                     "calorieIntake, calorieBurn, waterIntake, sleepHours) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";

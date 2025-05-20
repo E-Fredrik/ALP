@@ -64,7 +64,6 @@ public class apiConnect {
                                 System.out.println("Food item JSON: " + foodItem);
                             }
                         } else {
-                            System.out.println("No calories found for: " + name);
                             // Try alternate field names that might contain calories
                             String[] alternateFields = {"full_nutrients", "calories", "energy"};
                             for (String field : alternateFields) {

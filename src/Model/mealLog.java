@@ -2,6 +2,7 @@ package Model;
 
 import Logic.apiConnect;
 import java.util.Scanner;
+import java.util.Date;
 
 public class mealLog extends healthLog {
     private String foodName;
@@ -10,12 +11,19 @@ public class mealLog extends healthLog {
     private apiConnect nutritionApi;
 
     public mealLog() {
+        super(); // Initialize date
         scanner = new Scanner(System.in);
         nutritionApi = new apiConnect();
     }
     
-    // Constructor with parameters
     public mealLog(String foodName, int calories) {
+        super(); // Initialize with current date
+        this.foodName = foodName;
+        this.calories = calories;
+    }
+    
+    public mealLog(Date date, String foodName, int calories) {
+        super(date); // Use the specified date
         this.foodName = foodName;
         this.calories = calories;
     }
@@ -84,6 +92,7 @@ public class mealLog extends healthLog {
     @Override
     public void displayLog() {
         System.out.println("\n--- Meal Log Details ---");
+        System.out.println("Date: " + getFormattedDate());
         System.out.println("Food Name: " + foodName);
         System.out.println("Calories: " + calories + " kcal");
     }

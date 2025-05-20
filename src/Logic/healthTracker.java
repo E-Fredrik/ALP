@@ -1,12 +1,13 @@
 package Logic;
 
-import java.util.ArrayList;
-import java.util.Scanner;
+import java.util.*;
+import java.time.*;
 import Model.User;
 import Model.healthLog;
 import Model.mealLog;
 import Model.waterLog;
 import Model.exerciseLog;
+import java.util.Calendar;
 
 public class healthTracker {
     private Scanner scanner;
@@ -190,13 +191,12 @@ public class healthTracker {
         System.out.println("\n--- Main Menu ---");
         System.out.println("1. View Profile");
         System.out.println("2. Log Management");
-        System.out.println("3. Update Health Goals");  // New option
-        System.out.println("4. View Health Stats");
-        System.out.println("5. Log Out");  // Moved to option 5
+        System.out.println("3. Update Health Goals"); 
+        System.out.println("4. View Goal Progress");
+        System.out.println("5. Log Out");  
         System.out.print("Choose an option: ");
-        
-        int choice = getUserChoice(1, 5);  // Updated max value
-        
+
+        int choice = getUserChoice(1, 5);
         switch (choice) {
             case 1:
                 viewProfile();
@@ -205,10 +205,10 @@ public class healthTracker {
                 showLogMenu();
                 break;
             case 3:
-                updateHealthGoals();  // New method
+                updateHealthGoals();
                 break;
             case 4:
-                viewHealthStats();
+                viewGoalProgress();
                 break;
             case 5:
                 currentUser = null;
@@ -216,50 +216,234 @@ public class healthTracker {
                 break;
         }
     }
+    // Add this method to filter logs by today's date
+    private boolean isToday(Date date) {
+        if (date == null) return false;
+        
+        Calendar today = Calendar.getInstance();
+        Calendar logDate = Calendar.getInstance();
+        logDate.setTime(date);
+        
+        return today.get(Calendar.YEAR) == logDate.get(Calendar.YEAR) &&
+               today.get(Calendar.DAY_OF_YEAR) == logDate.get(Calendar.DAY_OF_YEAR);
+    }
+
+    private void viewGoalProgress() {
+        System.out.println("\n--- Goal Progress ---");
+        LocalDate today = LocalDate.now();
+        String todayStr = today.toString();
+        System.out.println("Date: " + todayStr);
+        
+        int totalCaloriesConsumed = 0;
+        int totalCaloriesBurned = 0;
+        int totalWaterIntake = 0;
+        
+        
+        for (healthLog log : logs) {
+            
+            if (isToday(log.getDate())) {
+                if (log instanceof mealLog) {
+                    mealLog meal = (mealLog) log;
+                    totalCaloriesConsumed += meal.getCalories();
+                } else if (log instanceof exerciseLog) {
+                    exerciseLog exercise = (exerciseLog) log;
+                    totalCaloriesBurned += exercise.getCaloriesBurned();
+                } else if (log instanceof waterLog) {
+                    waterLog water = (waterLog) log;
+                    totalWaterIntake += water.getWaterIntake();
+                }
+            }
+        }
+        
+        
+        int calorieIntakeGoal = currentUser.getCalorieIntake();
+        int calorieBurnGoal = currentUser.getCalorieBurn();
+        int waterIntakeGoal = currentUser.getWaterIntake();
+        
+        
+        double calorieIntakePercentage = (calorieIntakeGoal > 0) ? 
+            Math.min(100, (totalCaloriesConsumed * 100.0 / calorieIntakeGoal)) : 0;
+        double calorieBurnPercentage = (calorieBurnGoal > 0) ?
+            Math.min(100, (totalCaloriesBurned * 100.0 / calorieBurnGoal)) : 0;
+        double waterIntakePercentage = (waterIntakeGoal > 0) ?
+            Math.min(100, (totalWaterIntake * 100.0 / waterIntakeGoal)) : 0;
+        
+        
+        System.out.println("\n🏆 TODAY'S PROGRESS SUMMARY 🏆");
+        
+    
+        System.out.println("\n📊 CALORIE INTAKE:");
+        System.out.println("Goal: " + calorieIntakeGoal + " calories");
+        System.out.println("Consumed: " + totalCaloriesConsumed + " calories");
+        System.out.println("Progress: " + String.format("%.1f", calorieIntakePercentage) + "%");
+        displayProgressBar(calorieIntakePercentage);
+        
+
+        if (totalCaloriesConsumed <= calorieIntakeGoal) {
+            if (totalCaloriesConsumed == 0) {
+                System.out.println("You haven't logged any calories today. Make sure to log your meals!");
+            } else if (totalCaloriesConsumed < calorieIntakeGoal * 0.5) {
+                System.out.println("You're eating significantly below your goal. Make sure you're getting enough nutrition!");
+            } else {
+                System.out.println("Great job! You're staying within your calorie intake goal.");
+            }
+        } else {
+            int excess = totalCaloriesConsumed - calorieIntakeGoal;
+            System.out.println("You've consumed " + excess + " calories over your goal today.");
+        }
+        
+
+        System.out.println("\nCALORIE BURN:");
+        System.out.println("Goal: " + calorieBurnGoal + " calories");
+        System.out.println("Burned: " + totalCaloriesBurned + " calories");
+        System.out.println("Progress: " + String.format("%.1f", calorieBurnPercentage) + "%");
+        displayProgressBar(calorieBurnPercentage);
+        
+
+        if (totalCaloriesBurned >= calorieBurnGoal) {
+            System.out.println("Excellent! You've exceeded your calorie burn goal by " + 
+                              (totalCaloriesBurned - calorieBurnGoal) + " calories.");
+        } else if (totalCaloriesBurned == 0) {
+            System.out.println("You haven't logged any exercise today. Try to stay active!");
+        } else {
+            int remaining = calorieBurnGoal - totalCaloriesBurned;
+            System.out.println("You still need to burn " + remaining + " more calories to reach your goal.");
+        }
+     
+        System.out.println("\nWATER INTAKE:");
+        System.out.println("Goal: " + waterIntakeGoal + " ml");
+        System.out.println("Consumed: " + totalWaterIntake + " ml");
+        System.out.println("Progress: " + String.format("%.1f", waterIntakePercentage) + "%");
+        displayProgressBar(waterIntakePercentage);
+        
+       
+        if (totalWaterIntake >= waterIntakeGoal) {
+            System.out.println("Excellent! You've met your water intake goal.");
+            if (totalWaterIntake >= waterIntakeGoal * 1.5) {
+                System.out.println("You're super hydrated today!");
+            }
+        } else if (totalWaterIntake == 0) {
+            System.out.println("You haven't logged any water today. Remember to stay hydrated!");
+        } else {
+            int remaining = waterIntakeGoal - totalWaterIntake;
+            System.out.println("You still need to drink " + remaining + " ml more water to reach your goal.");
+        }
+        
+        // Overall assessment
+        System.out.println("\n📝 OVERALL ASSESSMENT:");
+        int goalsAchieved = 0;
+        int totalGoals = 3;
+        
+        if (totalCaloriesConsumed <= calorieIntakeGoal && totalCaloriesConsumed > 0) goalsAchieved++;
+        if (totalCaloriesBurned >= calorieBurnGoal) goalsAchieved++;
+        if (totalWaterIntake >= waterIntakeGoal) goalsAchieved++;
+        
+        if (goalsAchieved == totalGoals) {
+            System.out.println("🎉 CONGRATULATIONS! You've achieved all your health goals for today!");
+        } else if (goalsAchieved > 0) {
+            System.out.println("You've achieved " + goalsAchieved + " out of " + totalGoals + " goals today. Keep going!");
+        } else {
+            System.out.println("Keep working towards your goals. You can do it!");
+        }
+        
+        System.out.println("\nPress Enter to continue...");
+        scanner.nextLine();
+    }
+
+
+    private void displayProgressBar(double percentage) {
+        final int BAR_LENGTH = 20;
+        int filledBars = (int) (percentage * BAR_LENGTH / 100);
+        
+        System.out.print("[");
+        for (int i = 0; i < BAR_LENGTH; i++) {
+            if (i < filledBars) {
+                System.out.print("█");
+            } else {
+                System.out.print(" ");
+            }
+        }
+        System.out.println("] " + String.format("%.1f", percentage) + "%");
+    }
     
     private void showLogMenu() {
         boolean inLogMenu = true;
         
         while (inLogMenu) {
             System.out.println("\n--- Log Management ---");
-            System.out.println("1. Add Water Intake Log");
-            System.out.println("2. Add Meal Log");
-            System.out.println("3. Add Exercise Log");
-            System.out.println("4. View All Logs");
-            System.out.println("5. View Water Intake Logs");
-            System.out.println("6. View Meal Logs"); 
-            System.out.println("7. View Exercise Logs");
-            System.out.println("8. Return to Main Menu");
+            System.out.println("1. Add Logs");
+            System.out.println("2. View Logs");
+            System.out.println("3. Return to Main Menu");
             System.out.print("Choose an option: ");
             
-            int choice = getUserChoice(1, 8);
+            int choice = getUserChoice(1, 3);
             
             switch (choice) {
                 case 1:
-                    addWaterIntakeLog();
+                    addLogs();
                     break;
                 case 2:
-                    addMealLog();
+                    viewLogs();
                     break;
                 case 3:
-                    addExerciseLog();
-                    break;
-                case 4:
-                    viewAllLogs();
-                    break;
-                case 5:
-                    viewLogsByType("water");
-                    break;
-                case 6:
-                    viewLogsByType("meal");
-                    break;
-                case 7:
-                    viewLogsByType("exercise");
-                    break;
-                case 8:
                     inLogMenu = false;
                     break;
             }
+        }
+
+    }
+
+    private void addLogs() {
+        System.out.println("\n--- Add Logs ---");
+        System.out.println("1. Add Water Intake Log");
+        System.out.println("2. Add Meal Log");
+        System.out.println("3. Add Exercise Log");
+        System.out.println("4. Return to Main Menu");
+        System.out.print("Choose an option: ");
+
+        int choice = getUserChoice(1, 4);
+
+        switch (choice) {
+            case 1:
+                addWaterIntakeLog();
+                break;
+            case 2:
+                addMealLog();
+                break;
+            case 3:
+                addExerciseLog();
+                break;
+            case 4:
+                return;
+        }
+    }
+
+    private void viewLogs() {
+        System.out.println("\n--- View Logs ---");
+        System.out.println("1. View All Logs");
+        System.out.println("2. View Water Intake Logs");
+        System.out.println("3. View Meal Logs");
+        System.out.println("4. View Exercise Logs");
+        System.out.println("5. Return to Main Menu");
+        System.out.print("Choose an option: ");
+        
+        int choice = getUserChoice(1, 5);
+        
+        switch (choice) {
+            case 1:
+                viewAllLogs();
+                break;
+            case 2:
+                viewLogsByType("water");
+                break;
+            case 3:
+                viewLogsByType("meal");
+                break;
+            case 4:
+                viewLogsByType("exercise");
+                break;
+            case 5:
+                return;
         }
     }
     
@@ -287,9 +471,9 @@ public class healthTracker {
     
     private void addExerciseLog() {
         System.out.println("\n--- Add Exercise Log ---");
-        exerciseLog log = new exerciseLog();
+        exerciseLog log = new exerciseLog(currentUser);
         log.inputLog();
-        logs.add(log); // Add to unified logs collection
+        logs.add(log);
         log.displayLog();
         System.out.println("Exercise logged successfully!");
         System.out.println("\nPress Enter to continue...");

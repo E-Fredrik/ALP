@@ -113,7 +113,6 @@ public class User {
         this.age = age;
     }
 
-    // Method to update all user goals in the database
     public boolean updateUserGoals() {
         sqlConnect dbConnection = new sqlConnect();
         return dbConnection.updateUserGoals(this);
