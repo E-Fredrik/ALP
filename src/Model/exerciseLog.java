@@ -78,6 +78,7 @@ public class exerciseLog extends healthLog {
             }
         }
     }
+
     
     public void estimateCaloriesBurned() {
         double met;
@@ -227,5 +228,18 @@ public void inputLog() {
     @Override
     public String getType() {
         return "exercise";
+    }
+
+    public void setExerciseType(String exerciseType) {
+        this.exerciseType = exerciseType;
+    }
+    public void setDuration(int duration) {
+        this.duration = duration;
+    }
+    public void setCaloriesBurned(int caloriesBurned) {
+        this.caloriesBurned = caloriesBurned;
+    }
+    public void setIntensity(double intensity) {
+        this.intensity = intensity;
     }
 }

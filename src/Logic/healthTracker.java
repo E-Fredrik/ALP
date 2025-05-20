@@ -8,16 +8,16 @@ import Model.mealLog;
 import Model.waterLog;
 import Model.exerciseLog;
 import java.util.Calendar;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 
 public class healthTracker {
     private Scanner scanner;
     private User currentUser;
-    private ArrayList<healthLog> logs;
     
     public healthTracker() {
         scanner = new Scanner(System.in);
         currentUser = null;
-        logs = new ArrayList<>();
     }
     
     public void start() {
@@ -238,23 +238,39 @@ public class healthTracker {
         int totalCaloriesBurned = 0;
         int totalWaterIntake = 0;
         
+        // Get today's logs from database
+        sqlConnect dbConnection = new sqlConnect();
         
-        for (healthLog log : logs) {
-            
-            if (isToday(log.getDate())) {
-                if (log instanceof mealLog) {
-                    mealLog meal = (mealLog) log;
-                    totalCaloriesConsumed += meal.getCalories();
-                } else if (log instanceof exerciseLog) {
-                    exerciseLog exercise = (exerciseLog) log;
-                    totalCaloriesBurned += exercise.getCaloriesBurned();
-                } else if (log instanceof waterLog) {
-                    waterLog water = (waterLog) log;
-                    totalWaterIntake += water.getWaterIntake();
-                }
-            }
+        // Create date range for today
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startDate = cal.getTime();
+        cal.add(Calendar.DAY_OF_MONTH, 1);
+        Date endDate = cal.getTime();
+        
+        // Fetch logs from the database for today
+        ArrayList<waterLog> waterLogs = (ArrayList<waterLog>) dbConnection.getWaterLogs(
+                currentUser.getUsername(), startDate, endDate);
+        ArrayList<mealLog> mealLogs = (ArrayList<mealLog>) dbConnection.getMealLogs(
+                currentUser.getUsername(), startDate, endDate);
+        ArrayList<exerciseLog> exerciseLogs = (ArrayList<exerciseLog>) dbConnection.getExerciseLogs(
+                currentUser.getUsername(), startDate, endDate);
+        
+        // Calculate totals
+        for (mealLog meal : mealLogs) {
+            totalCaloriesConsumed += meal.getCalories();
         }
         
+        for (exerciseLog exercise : exerciseLogs) {
+            totalCaloriesBurned += exercise.getCaloriesBurned();
+        }
+        
+        for (waterLog water : waterLogs) {
+            totalWaterIntake += water.getWaterIntake();
+        }
         
         int calorieIntakeGoal = currentUser.getCalorieIntake();
         int calorieBurnGoal = currentUser.getCalorieBurn();
@@ -424,10 +440,11 @@ public class healthTracker {
         System.out.println("2. View Water Intake Logs");
         System.out.println("3. View Meal Logs");
         System.out.println("4. View Exercise Logs");
-        System.out.println("5. Return to Main Menu");
+        System.out.println("5. Filter Logs by Date");  // New option
+        System.out.println("6. Return to Main Menu");
         System.out.print("Choose an option: ");
         
-        int choice = getUserChoice(1, 5);
+        int choice = getUserChoice(1, 6);
         
         switch (choice) {
             case 1:
@@ -443,6 +460,9 @@ public class healthTracker {
                 viewLogsByType("exercise");
                 break;
             case 5:
+                viewLogsByDate();  // Call the new method
+                break;
+            case 6:
                 return;
         }
     }
@@ -451,9 +471,18 @@ public class healthTracker {
         System.out.println("\n--- Add Water Intake Log ---");
         waterLog log = new waterLog();
         log.inputLog();
-        logs.add(log); // Add to unified logs collection
+        
+        // Save to database
+        sqlConnect dbConnection = new sqlConnect();
+        boolean saved = dbConnection.saveWaterLog(currentUser.getUsername(), log.getDate(), log.getWaterIntake());
+        
+        if (saved) {
+            System.out.println("Water intake logged successfully!");
+        } else {
+            System.out.println("Failed to save water intake to database.");
+        }
+        
         log.displayLog();
-        System.out.println("Water intake logged successfully!");
         System.out.println("\nPress Enter to continue...");
         scanner.nextLine();
     }
@@ -462,9 +491,19 @@ public class healthTracker {
         System.out.println("\n--- Add Meal Log ---");
         mealLog log = new mealLog();
         log.inputLog();
-        logs.add(log); // Add to unified logs collection
+        
+        // Add database save
+        sqlConnect dbConnection = new sqlConnect();
+        boolean saved = dbConnection.saveMealLog(currentUser.getUsername(), log.getDate(), 
+                                            log.getFoodName(), log.getCalories());
+    
+        if (saved) {
+            System.out.println("Meal logged successfully!");
+        } else {
+            System.out.println("Failed to save meal log to database.");
+        }
+    
         log.displayLog();
-        System.out.println("Meal logged successfully!");
         System.out.println("\nPress Enter to continue...");
         scanner.nextLine();
     }
@@ -473,9 +512,20 @@ public class healthTracker {
         System.out.println("\n--- Add Exercise Log ---");
         exerciseLog log = new exerciseLog(currentUser);
         log.inputLog();
-        logs.add(log);
+        
+        // Add database save
+        sqlConnect dbConnection = new sqlConnect();
+        boolean saved = dbConnection.saveExerciseLog(currentUser.getUsername(), log.getDate(), 
+                                                log.getExerciseType(), log.getDuration(), 
+                                                log.getIntensity(), log.getCaloriesBurned());
+    
+        if (saved) {
+            System.out.println("Exercise logged successfully!");
+        } else {
+            System.out.println("Failed to save exercise log to database.");
+        }
+    
         log.displayLog();
-        System.out.println("Exercise logged successfully!");
         System.out.println("\nPress Enter to continue...");
         scanner.nextLine();
     }
@@ -483,12 +533,48 @@ public class healthTracker {
     private void viewAllLogs() {
         System.out.println("\n--- All Health Logs ---");
         
-        if (logs.isEmpty()) {
+        sqlConnect dbConnection = new sqlConnect();
+        
+        // Get today's date range
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startDate = cal.getTime();
+        cal.add(Calendar.DAY_OF_MONTH, 1);
+        Date endDate = cal.getTime();
+        
+        // Fetch all logs from the database
+        ArrayList<waterLog> waterLogs = (ArrayList<waterLog>) dbConnection.getWaterLogs(
+                currentUser.getUsername(), startDate, endDate);
+        ArrayList<mealLog> mealLogs = (ArrayList<mealLog>) dbConnection.getMealLogs(
+                currentUser.getUsername(), startDate, endDate);
+        ArrayList<exerciseLog> exerciseLogs = (ArrayList<exerciseLog>) dbConnection.getExerciseLogs(
+                currentUser.getUsername(), startDate, endDate);
+        
+        if (waterLogs.isEmpty() && mealLogs.isEmpty() && exerciseLogs.isEmpty()) {
             System.out.println("No logs found.");
         } else {
-            for (healthLog log : logs) {
-                log.displayLog();
-                System.out.println("-------------------------");
+            if (!waterLogs.isEmpty()) {
+                for (waterLog log : waterLogs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                }
+            }
+            
+            if (!mealLogs.isEmpty()) {
+                for (mealLog log : mealLogs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                }
+            }
+            
+            if (!exerciseLogs.isEmpty()) {
+                for (exerciseLog log : exerciseLogs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                }
             }
         }
         
@@ -499,17 +585,59 @@ public class healthTracker {
     private void viewLogsByType(String type) {
         System.out.println("\n--- " + capitalizeFirstLetter(type) + " Logs ---");
         
-        boolean logsFound = false;
-        for (healthLog log : logs) {
-            if (log.getType().equalsIgnoreCase(type)) {
-                log.displayLog();
-                System.out.println("-------------------------");
-                logsFound = true;
-            }
-        }
+        sqlConnect dbConnection = new sqlConnect();
         
-        if (!logsFound) {
-            System.out.println("No " + type + " logs found.");
+        // Get today's date range
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startDate = cal.getTime();
+        cal.add(Calendar.DAY_OF_MONTH, 1);
+        Date endDate = cal.getTime();
+        
+        boolean logsFound = false;
+        
+        if (type.equalsIgnoreCase("water")) {
+            ArrayList<waterLog> logs = (ArrayList<waterLog>) dbConnection.getWaterLogs(
+                    currentUser.getUsername(), startDate, endDate);
+            
+            if (logs.isEmpty()) {
+                System.out.println("No water logs found.");
+            } else {
+                for (waterLog log : logs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                    logsFound = true;
+                }
+            }
+        } else if (type.equalsIgnoreCase("meal")) {
+            ArrayList<mealLog> logs = (ArrayList<mealLog>) dbConnection.getMealLogs(
+                    currentUser.getUsername(), startDate, endDate);
+            
+            if (logs.isEmpty()) {
+                System.out.println("No meal logs found.");
+            } else {
+                for (mealLog log : logs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                    logsFound = true;
+                }
+            }
+        } else if (type.equalsIgnoreCase("exercise")) {
+            ArrayList<exerciseLog> logs = (ArrayList<exerciseLog>) dbConnection.getExerciseLogs(
+                    currentUser.getUsername(), startDate, endDate);
+            
+            if (logs.isEmpty()) {
+                System.out.println("No exercise logs found.");
+            } else {
+                for (exerciseLog log : logs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                    logsFound = true;
+                }
+            }
         }
         
         System.out.println("Press Enter to continue...");
@@ -655,5 +783,116 @@ public class healthTracker {
             return str;
         }
         return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
+    }
+
+    private void viewLogsByDate() {
+        System.out.println("\n--- Filter Logs by Date ---");
+        System.out.println("1. View Today's Logs");
+        System.out.println("2. View Yesterday's Logs");
+        System.out.println("3. View Logs from Last 7 Days");
+        System.out.println("4. View Logs from Last 30 Days");
+        System.out.println("5. View Logs from Custom Date Range");
+        System.out.println("6. Return to Previous Menu");
+        System.out.print("Choose an option: ");
+        
+        int choice = getUserChoice(1, 6);
+        
+        Date startDate = null;
+        Date endDate = new Date(); // End date is always current date
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        
+        Calendar cal = Calendar.getInstance();
+        
+        switch (choice) {
+            case 1: // Today
+                cal.set(Calendar.HOUR_OF_DAY, 0);
+                cal.set(Calendar.MINUTE, 0);
+                cal.set(Calendar.SECOND, 0);
+                cal.set(Calendar.MILLISECOND, 0);
+                startDate = cal.getTime();
+                break;
+            case 2: // Yesterday
+                cal.add(Calendar.DAY_OF_MONTH, -1);
+                cal.set(Calendar.HOUR_OF_DAY, 0);
+                cal.set(Calendar.MINUTE, 0);
+                cal.set(Calendar.SECOND, 0);
+                cal.set(Calendar.MILLISECOND, 0);
+                startDate = cal.getTime();
+                cal.add(Calendar.DAY_OF_MONTH, 1);
+                endDate = cal.getTime();
+                break;
+            case 3: // Last 7 days
+                cal.add(Calendar.DAY_OF_MONTH, -7);
+                cal.set(Calendar.HOUR_OF_DAY, 0);
+                cal.set(Calendar.MINUTE, 0);
+                cal.set(Calendar.SECOND, 0);
+                cal.set(Calendar.MILLISECOND, 0);
+                startDate = cal.getTime();
+                break;
+            case 4: // Last 30 days
+                cal.add(Calendar.DAY_OF_MONTH, -30);
+                cal.set(Calendar.HOUR_OF_DAY, 0);
+                cal.set(Calendar.MINUTE, 0);
+                cal.set(Calendar.SECOND, 0);
+                cal.set(Calendar.MILLISECOND, 0);
+                startDate = cal.getTime();
+                break;
+            case 5: // Custom date range
+                boolean validStartDate = false;
+                while (!validStartDate) {
+                    System.out.print("Enter start date (YYYY-MM-DD): ");
+                    String startDateStr = scanner.nextLine();
+                    try {
+                        startDate = sdf.parse(startDateStr);
+                        validStartDate = true;
+                    } catch (ParseException e) {
+                        System.out.println("Invalid date format. Please use YYYY-MM-DD.");
+                    }
+                }
+                break;
+            case 6:
+                return;
+        }
+        
+        // Retrieve logs from database using the date range
+        sqlConnect dbConnection = new sqlConnect();
+        
+        List<waterLog> waterLogs = dbConnection.getWaterLogs(currentUser.getUsername(), startDate, endDate);
+        List<mealLog> mealLogs = dbConnection.getMealLogs(currentUser.getUsername(), startDate, endDate);
+        List<exerciseLog> exerciseLogs = dbConnection.getExerciseLogs(currentUser.getUsername(), startDate, endDate);
+        
+        // Display the logs
+        System.out.println("\n--- Logs from " + sdf.format(startDate) + " to " + sdf.format(endDate) + " ---");
+        
+        if (waterLogs.isEmpty() && mealLogs.isEmpty() && exerciseLogs.isEmpty()) {
+            System.out.println("No logs found for this date range.");
+        } else {
+            if (!waterLogs.isEmpty()) {
+                System.out.println("\nWater Intake Logs:");
+                for (waterLog log : waterLogs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                }
+            }
+            
+            if (!mealLogs.isEmpty()) {
+                System.out.println("\nMeal Logs:");
+                for (mealLog log : mealLogs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                }
+            }
+            
+            if (!exerciseLogs.isEmpty()) {
+                System.out.println("\nExercise Logs:");
+                for (exerciseLog log : exerciseLogs) {
+                    log.displayLog();
+                    System.out.println("-------------------------");
+                }
+            }
+        }
+        
+        System.out.println("\nPress Enter to continue...");
+        scanner.nextLine();
     }
 }
